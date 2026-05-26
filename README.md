@@ -6,6 +6,24 @@ public footprint — owned repos plus recent cross-repo push activity.
 Useful for: auditing your own commit footprint, hiring background-check
 transparency, security research, and incident response.
 
+## Quick start (macOS — no install needed)
+
+Skip the rest of this README if all you want is to use the tool:
+
+1. **Download** the latest release zip:
+   <https://github.com/nikitaclicks/shakal/releases/latest>
+2. **Unzip** it (macOS does this for you when you double-click the `.zip`)
+3. Open the unzipped folder and **double-click `gh-to-email.app`**
+4. **First time only** — macOS will warn that the developer is unidentified.
+   Close the warning, then **right-click** (or two-finger tap) on
+   `gh-to-email.app` → **Open** → **Open**. You won't be asked again.
+5. The app walks you through making a free GitHub token (~1 minute, just
+   click "Generate token" on the page it opens for you)
+6. Type any GitHub username when prompted — results save to your Desktop
+   as both a text summary and a JSON file
+
+That's the whole thing. No Python, no `gh` CLI, no Terminal.
+
 ## A note on responsible use
 
 Every email this tool surfaces is **already public** — it comes straight from
@@ -38,33 +56,36 @@ Noreply privacy addresses (`*@users.noreply.github.com`) are flagged
 separately — they're not real inboxes but the numeric prefix
 (`12345+user@...`) still correlates to a GitHub user ID.
 
-## Requirements
+## Ways to run it
 
-Two ways to run it:
+| For | Use |
+| --- | --- |
+| A friend / family member on macOS who just wants results | The `.app` from the [release zip](https://github.com/nikitaclicks/shakal/releases/latest) — see [Quick start](#quick-start-macos--no-install-needed) above |
+| Terminal users on macOS | The bare `gh-to-email` binary (also in the release zip) — see [CLI usage](#cli-usage) |
+| Developers / Linux / Windows | The Python script directly — see [Running the Python source](#running-the-python-source) |
 
-**A. Standalone binary** (zero install — share with non-technical users)
-- Single 8MB executable, no Python or `gh` needed
-- Just needs a `GITHUB_TOKEN` (one-time, takes 1 minute — see [Sharing with someone else](#sharing-with-someone-else))
-- Build with `./build.sh` (requires Python + PyInstaller on your machine)
+## CLI usage
 
-**B. Run the Python script directly** (for development on this machine)
-- Python 3.8+ (stdlib only, no pip deps)
-- Auth via either:
-  - [`gh` CLI](https://cli.github.com/) authenticated (`gh auth login`), or
-  - `GITHUB_TOKEN` / `GH_TOKEN` env var
-
-Authenticated requests give you 5000/hour — plenty for any single user scan.
-
-## Usage
-
-### Quick start
+The release zip also includes a bare `gh-to-email` binary. Once you've
+unzipped:
 
 ```bash
-./run.sh octocat
-./run.sh https://github.com/octocat
+export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+./gh-to-email octocat
+./gh-to-email https://github.com/octocat --verbose
+./gh-to-email torvalds --max-pages-per-repo 2 --skip-events
 ```
 
-### Direct Python invocation
+If you have the [`gh` CLI](https://cli.github.com/) installed and logged in,
+you can skip `GITHUB_TOKEN` — the binary will read your token via
+`gh auth token` automatically.
+
+## Running the Python source
+
+For development, or on Linux/Windows where no binary is shipped:
+
+- Python 3.8+ (stdlib only, no pip deps)
+- Auth via either `gh auth login` or `GITHUB_TOKEN` / `GH_TOKEN` env var
 
 ```bash
 python3 gh_to_email.py octocat
@@ -72,6 +93,8 @@ python3 gh_to_email.py https://github.com/octocat --verbose
 python3 gh_to_email.py torvalds --max-pages-per-repo 2 --skip-events
 python3 gh_to_email.py octocat --out /tmp/out.json
 ```
+
+Authenticated requests give you 5000/hour — plenty for any single user scan.
 
 ### Flags
 
@@ -143,58 +166,29 @@ jq '.commits[] | select(.date >= "2020-01-01" and .date <= "2020-12-31")' octoca
 jq '.emails[] | select(.email == "foo@bar.com") | .repos' octocat-emails.json
 ```
 
-## Sharing with someone else
+## Building from source
 
-The `dist/` folder is what you hand off. It contains:
-
-- `gh-to-email` — the standalone binary
-- `lookup.command` — a friendly double-click wrapper that prompts for a
-  username and (on first run) walks them through getting a token
-
-### Building
+If you're on Linux, Windows, or Intel Mac (none of which the release zip
+supports), build your own binary:
 
 ```bash
+git clone https://github.com/nikitaclicks/shakal
+cd shakal
 ./build.sh
 ```
 
-This creates `dist/gh-to-email` (~8MB).
+This produces `dist/<release-folder>.zip` matching your host OS + arch.
 
-**Cross-platform note:** PyInstaller produces a binary for whatever
-OS + architecture you build on. A macOS arm64 build won't run on Intel macs,
-Linux, or Windows. To ship to all four targets, build separately on each
-(or, in the long run, wire up a GitHub Actions matrix). The standard four
-targets to cover:
+**Cross-platform note:** PyInstaller binaries are platform-specific. The
+macOS .app is also macOS-only. The Python source (`gh_to_email.py`) is the
+only fully portable piece.
 
 | target | build host needed |
 | --- | --- |
 | macOS arm64 (Apple Silicon) | macOS arm64 |
 | macOS x86_64 (Intel) | macOS Intel |
-| Linux x86_64 | Linux x86_64 |
-| Windows x86_64 | Windows x86_64 |
-
-The Python source (`gh_to_email.py`) is always portable — anyone with
-Python 3.8+ can run it directly without a binary.
-
-### Handoff to a non-technical user (macOS)
-
-1. Zip the `dist/` folder and AirDrop / send it.
-2. They unzip somewhere (e.g. Desktop) and **double-click `lookup.command`**.
-3. macOS Gatekeeper will block the first run because the binary is unsigned:
-   - In Finder, **right-click** `lookup.command` → **Open** → **Open** in the
-     prompt. After that, double-click works normally.
-   - Same dance for `gh-to-email` if they ever run it directly.
-4. The wrapper walks them through creating a token at
-   https://github.com/settings/tokens/new (no scopes needed for public repos).
-   Token is saved to `~/.config/gh-to-email/token` (chmod 600) so they're only
-   asked once.
-5. After that, just double-click and type a username.
-
-### CLI-style handoff (terminal users)
-
-```bash
-export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-./gh-to-email octocat
-```
+| Linux x86_64 | Linux x86_64 (no .app, CLI binary only) |
+| Windows x86_64 | Windows x86_64 (no .app, CLI binary only) |
 
 ## Limitations
 

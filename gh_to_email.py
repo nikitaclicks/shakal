@@ -22,7 +22,7 @@ import urllib.request
 from collections import defaultdict
 from datetime import datetime, timezone
 
-__version__ = "0.1.0"
+__version__ = "0.1.1"
 
 API = "https://api.github.com"
 UA = f"gh-to-email/{__version__} (+stdlib)"
