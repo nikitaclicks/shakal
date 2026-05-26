@@ -40,6 +40,9 @@ osacompile -o dist/gh-to-email.app app.applescript
 cp dist/gh-to-email dist/gh-to-email.app/Contents/Resources/gh-to-email
 chmod +x dist/gh-to-email.app/Contents/Resources/gh-to-email
 
+echo "ad-hoc signing .app bundle..."
+codesign --force --deep --sign - dist/gh-to-email.app 2>&1 | sed 's/^/  /'
+
 echo "assembling release folder..."
 REL="dist/$RELEASE_NAME"
 rm -rf "$REL"

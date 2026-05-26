@@ -14,15 +14,53 @@ Skip the rest of this README if all you want is to use the tool:
    <https://github.com/nikitaclicks/shakal/releases/latest>
 2. **Unzip** it (macOS does this for you when you double-click the `.zip`)
 3. Open the unzipped folder and **double-click `gh-to-email.app`**
-4. **First time only** — macOS will warn that the developer is unidentified.
-   Close the warning, then **right-click** (or two-finger tap) on
-   `gh-to-email.app` → **Open** → **Open**. You won't be asked again.
+4. **First time only** — macOS shows a "developer cannot be verified" warning.
+   See [Bypassing the first-run warning](#bypassing-the-first-run-warning) below.
 5. The app walks you through making a free GitHub token (~1 minute, just
    click "Generate token" on the page it opens for you)
 6. Type any GitHub username when prompted — results save to your Desktop
    as both a text summary and a JSON file
 
 That's the whole thing. No Python, no `gh` CLI, no Terminal.
+
+### Bypassing the first-run warning
+
+macOS blocks unsigned apps from the internet. This is a **one-time** thing —
+once approved, double-click works forever. Two ways to fix it; pick whichever
+is easier.
+
+#### Method A: Terminal (recommended — always works, 30 seconds)
+
+1. Open **Terminal** (Cmd+Space, type `terminal`, press Enter)
+2. In the Terminal window, type this **exactly** (note the trailing space —
+   don't press Enter yet):
+   ```
+   xattr -dr com.apple.quarantine 
+   ```
+3. In Finder, **drag the unzipped folder** (`gh-to-email-0.1.1-macos-arm64`)
+   onto the Terminal window. This pastes the path automatically.
+4. Press **Enter**.
+5. ✅ Done. Double-click `gh-to-email.app` — no warning, ever.
+
+#### Method B: System Settings (no Terminal, but flaky on macOS 26)
+
+> **⚠️ macOS 26 (Tahoe) quirk:** the first warning dialog has a "Move to
+> Trash" button as the default — clicking it actually moves the app to
+> Trash. If you did that, drag it back from Trash first.
+
+1. Double-click `gh-to-email.app` — warning appears
+2. Click **Done** (the small button, NOT "Move to Trash")
+3. Open **System Settings** → **Privacy & Security**
+4. Scroll all the way down to "Security"
+5. If you see *"gh-to-email.app was blocked..."* → click **Open Anyway**,
+   then confirm with Touch ID, then click **Open** in the next dialog
+6. If you DON'T see that entry → the System Settings method isn't going
+   to work on your macOS version. Use Method A above.
+
+#### Method C (older macOS 14 and earlier only)
+
+Right-click `gh-to-email.app` → **Open** → **Open** in the warning. This
+shortcut was removed in macOS 15.
 
 ## A note on responsible use
 
