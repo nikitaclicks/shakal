@@ -228,6 +228,126 @@ only fully portable piece.
 | Linux x86_64 | Linux x86_64 (no .app, CLI binary only) |
 | Windows x86_64 | Windows x86_64 (no .app, CLI binary only) |
 
+## Project layout
+
+| Path | Purpose |
+| --- | --- |
+| `gh_to_email.py` | The actual tool. Stdlib-only Python. `__version__` lives here and drives all release naming. |
+| `app.applescript` | AppleScript source for the macOS `.app` UI. Compiled by `osacompile` at build time into `gh-to-email.app`. Pops dialogs for token + username, runs the embedded binary, saves output to Desktop. |
+| `build.sh` | Build pipeline: venv setup → PyInstaller `--onefile` → `osacompile` → embed binary into `.app/Contents/Resources/` → ad-hoc `codesign` → assemble versioned release folder → zip. Reads version from `gh_to_email.py`. |
+| `release-readme.txt` | Plain-text quick guide bundled inside the release zip as `README.txt`. End-user-facing; updated whenever the bypass instructions or UX changes. |
+| `README.md` | This file. |
+| `LICENSE` | MIT. |
+| `.gitignore` | Excludes `.venv/`, `build/`, `dist/`, `*-emails.json` (sample outputs). |
+| `dist/` (gitignored) | Build output. Holds the binary, the `.app`, the versioned folder, and the release zip. Never committed — release artifacts ship via GitHub Releases. |
+
+## Releasing a new version
+
+End-to-end steps to cut and publish a new release. Tested on macOS arm64; for
+Linux/Windows you'd run a similar flow on those hosts (no `.app`, just the CLI
+binary).
+
+### 1. Bump the version
+
+Edit `gh_to_email.py` — change the `__version__` string:
+
+```python
+__version__ = "0.1.2"
+```
+
+This single source drives everything: the `--version` flag, the user-agent
+header, the zip name, the release folder name.
+
+### 2. Update user-facing docs if needed
+
+- If runtime behavior changed → update README's "Quick start" / flags table
+- If the Gatekeeper flow changed (new macOS version released) → update
+  `release-readme.txt` and the "Bypassing the first-run warning" section
+- If the in-app dialogs changed → keep `app.applescript` and the screenshots
+  in your head aligned
+
+### 3. Build
+
+```bash
+./build.sh
+```
+
+Produces:
+- `dist/gh-to-email` — bare CLI binary
+- `dist/gh-to-email.app` — bundled, ad-hoc signed, binary embedded inside
+- `dist/gh-to-email-<version>-macos-<arch>/` — assembled release folder (`.app` + binary + `README.txt`)
+- `dist/gh-to-email-<version>-macos-<arch>.zip` — the artifact you upload
+
+The build script:
+1. Creates `.venv/` if missing and installs PyInstaller into it (note: requires `PIP_USER=0` because of a global pip config quirk)
+2. Runs PyInstaller `--onefile` to produce the CLI binary
+3. Runs `osacompile` to compile `app.applescript` into a `.app` bundle
+4. Copies the binary into `.app/Contents/Resources/gh-to-email`
+5. Ad-hoc signs the `.app` (`codesign --force --deep --sign -`) — doesn't make Apple trust it but at least gives it a signature
+6. Assembles the versioned release folder and zips it
+
+### 4. Verify the build
+
+```bash
+dist/gh-to-email --version                     # confirms version string
+dist/gh-to-email octocat --skip-events         # quick smoke test
+codesign -dv dist/gh-to-email.app 2>&1 | head  # confirms ad-hoc signature
+```
+
+### 5. Commit, tag, push
+
+```bash
+git add -A
+git commit -m "release vX.Y.Z — <one-line summary>"
+git tag -a vX.Y.Z -m "vX.Y.Z — <summary>"
+git push origin main
+git push origin vX.Y.Z
+```
+
+### 6. Create the GitHub release (as a draft first)
+
+```bash
+gh release create vX.Y.Z \
+  --draft \
+  --title "vX.Y.Z — <short title>" \
+  --notes-file release-notes-vX.Y.Z.md \
+  dist/gh-to-email-X.Y.Z-macos-arm64.zip
+```
+
+(or pass `--notes "$(cat <<'EOF' ... EOF)"` inline if you don't want a notes file)
+
+Recommended notes structure (based on what's in v0.1.1):
+1. One-paragraph TL;DR
+2. **Download** section pointing at the asset
+3. **How to use** with numbered steps
+4. **Gatekeeper bypass** — Terminal `xattr` method first (always works), System Settings second, right-click→Open only for macOS ≤14
+5. **What's in the zip** table
+6. **Privacy / safety** paragraph
+7. **What changed** vs the previous version (skip for the first release)
+
+### 7. Test the draft end-to-end
+
+This is the critical step — confirms the published-and-downloaded experience, not just the local-build experience.
+
+1. Open the draft release page on GitHub, download the zip from there (this is what users will do — Safari/Chrome will tag it with `com.apple.quarantine`)
+2. Unzip in `~/Downloads`
+3. Confirm the warning behavior matches what your release notes describe
+4. Run `xattr -dr com.apple.quarantine ~/Downloads/gh-to-email-X.Y.Z-macos-arm64` and confirm the .app launches without a warning afterward
+5. Run through the token flow + a sample username lookup
+6. Confirm a JSON + .txt land on Desktop
+
+### 8. Publish
+
+If the draft tests cleanly, click **Publish release** on GitHub. The tag becomes immutable, the asset gets its permanent URL (`/releases/download/vX.Y.Z/...`), and you can share it.
+
+If something's wrong, you can either:
+- Edit the draft (replace asset via `gh release delete-asset` + `gh release upload`, edit notes via `gh release edit --notes`)
+- Or, if the tag is wrong / you want to start over: `gh release delete vX.Y.Z --yes --cleanup-tag`, fix the issue, redo from step 5
+
+### Patch / hot-fix policy
+
+Once a release is published, **don't move or delete the tag**. If you need to fix something, cut a new patch version (v0.1.2 → v0.1.3). The published zip is immutable so anyone who already downloaded keeps a stable artifact.
+
 ## Limitations
 
 - **Owned repos + 90-day events feed only** — doesn't use `/search/commits`,
